@@ -7,7 +7,7 @@ from telegram.ext import (
 )
 import sqlite3
 
-TOKEN = "8536189015:AAE7FI3iO__EbRSz45Il7FX00JfBdbiF4xQ"
+TOKEN = "your_token_here"
 CHAT_ID = 6189440183
 
 
