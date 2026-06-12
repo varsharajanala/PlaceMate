@@ -15,6 +15,22 @@ load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = int(os.getenv("CHAT_ID"))
 
+conn = sqlite3.connect("jobs.db")
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS jobs(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    link TEXT,
+    status TEXT DEFAULT 'Pending',
+    created_at TEXT
+)
+""")
+
+conn.commit()
+conn.close()
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
