@@ -1,0 +1,6 @@
+.env
+jobs.db
+placemate_session.session
+placemate_session.session-journal
+__pycache__/
+venv/

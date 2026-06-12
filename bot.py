@@ -1,3 +1,6 @@
+
+from dotenv import load_dotenv
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -7,13 +10,15 @@ from telegram.ext import (
 )
 import sqlite3
 
-TOKEN = "your_token_here"
-CHAT_ID = 6189440183
+load_dotenv()
+
+TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = int(os.getenv("CHAT_ID"))
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🚀 Placement Reminder Bot is Active!"
+        "🚀 PlaceMate Bot is Active!"
     )
 
 
@@ -49,7 +54,11 @@ async def jobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT id, title FROM jobs WHERE status='Pending'"
+        """
+        SELECT id, title, link
+        FROM jobs
+        WHERE status='Pending'
+        """
     )
 
     rows = cursor.fetchall()
@@ -62,19 +71,31 @@ async def jobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    for job in rows:
+    for index, job in enumerate(rows, start=1):
 
-        keyboard = [[
+        keyboard = []
+
+        if job[2] and job[2] != "No Link Found":
+            keyboard.append([
+                InlineKeyboardButton(
+                    "🔗 Open Job",
+                    url=job[2]
+                )
+            ])
+
+        keyboard.append([
             InlineKeyboardButton(
                 "✅ Applied",
                 callback_data=f"applied_{job[0]}"
             )
-        ]]
+        ])
 
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        reply_markup = InlineKeyboardMarkup(
+            keyboard
+        )
 
         await update.message.reply_text(
-            f"📌 {job[1]}",
+            f"{index}. 📌 {job[1]}",
             reply_markup=reply_markup
         )
 
@@ -108,6 +129,36 @@ async def applied(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"Your Chat ID: {update.effective_chat.id}"
+    )
+
+
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    conn = sqlite3.connect("jobs.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT COUNT(*) FROM jobs"
+    )
+    total = cursor.fetchone()[0]
+
+    cursor.execute(
+        "SELECT COUNT(*) FROM jobs WHERE status='Pending'"
+    )
+    pending = cursor.fetchone()[0]
+
+    cursor.execute(
+        "SELECT COUNT(*) FROM jobs WHERE status='Applied'"
+    )
+    applied_count = cursor.fetchone()[0]
+
+    conn.close()
+
+    await update.message.reply_text(
+        f"📊 PlaceMate Stats\n\n"
+        f"📌 Total Jobs: {total}\n"
+        f"⏳ Pending: {pending}\n"
+        f"✅ Applied: {applied_count}"
     )
 
 
@@ -148,7 +199,11 @@ async def reminder_job(context):
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT id, title FROM jobs WHERE status='Pending'"
+        """
+        SELECT id, title, link
+        FROM jobs
+        WHERE status='Pending'
+        """
     )
 
     rows = cursor.fetchall()
@@ -158,15 +213,65 @@ async def reminder_job(context):
     if not rows:
         return
 
-    message = "⚠️ Pending Applications\n\n"
-
-    for job in rows:
-        message += f"{job[0]}. {job[1]}\n"
-
     await context.bot.send_message(
         chat_id=CHAT_ID,
-        text=message
+        text=(
+            f"⚠️ Pending Applications\n\n"
+            f"Total Pending: {len(rows)}"
+        )
     )
+
+    for index, job in enumerate(rows[:10], start=1):
+
+        title = job[1]
+        link = job[2]
+
+        keyboard = []
+
+        if link and link != "No Link Found":
+            keyboard.append([
+                InlineKeyboardButton(
+                    "🔗 Open Job",
+                    url=link
+                )
+            ])
+
+        keyboard.append([
+            InlineKeyboardButton(
+                "✅ Applied",
+                callback_data=f"applied_{job[0]}"
+            )
+        ])
+
+        reply_markup = InlineKeyboardMarkup(
+            keyboard
+        )
+
+        await context.bot.send_message(
+            chat_id=CHAT_ID,
+            text=f"{index}. 📌 {title}",
+            reply_markup=reply_markup
+        )
+
+
+async def cleanup_old_jobs(context):
+
+    conn = sqlite3.connect("jobs.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    DELETE FROM jobs
+    WHERE datetime(created_at)
+    < datetime('now', '-1 day')
+    """)
+
+    deleted = cursor.rowcount
+
+    conn.commit()
+    conn.close()
+
+    if deleted > 0:
+        print(f"🗑 Deleted {deleted} expired jobs")
 
 
 app = ApplicationBuilder().token(TOKEN).build()
@@ -176,15 +281,21 @@ app.add_handler(CommandHandler("addjob", addjob))
 app.add_handler(CommandHandler("jobs", jobs))
 app.add_handler(CommandHandler("applied", applied))
 app.add_handler(CommandHandler("myid", myid))
+app.add_handler(CommandHandler("stats", stats))
 app.add_handler(CallbackQueryHandler(button_handler))
 
-# Reminder every 6 hours
 app.job_queue.run_repeating(
     reminder_job,
-    interval=21600,
+    interval=1800,
     first=10
 )
 
-print("Bot Running...")
+app.job_queue.run_repeating(
+    cleanup_old_jobs,
+    interval=3600,
+    first=60
+)
+
+print("🚀 PlaceMate Bot Running...")
 
 app.run_polling()
