@@ -1,5 +1,6 @@
 
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 from dotenv import load_dotenv
 import os
 import sqlite3
@@ -10,8 +11,10 @@ load_dotenv()
 api_id = int(os.getenv("API_ID"))
 api_hash = os.getenv("API_HASH")
 
+SESSION_STRING = os.getenv("SESSION_STRING")
+
 client = TelegramClient(
-    "placemate_session",
+    StringSession(SESSION_STRING),
     api_id,
     api_hash
 )
