@@ -1,4 +1,3 @@
-
 from dotenv import load_dotenv
 import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -15,46 +14,23 @@ load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = int(os.getenv("CHAT_ID"))
 
-try:
-    conn = sqlite3.connect("jobs.db")
-    cursor = conn.cursor()
+conn = sqlite3.connect("jobs.db")
+cursor = conn.cursor()
 
-    cursor.execute(
-        "SELECT id FROM jobs WHERE title=?",
-        (job_title,)
-    )
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS jobs(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    link TEXT,
+    status TEXT DEFAULT 'Pending',
+    created_at TEXT
+)
+""")
 
-    existing = cursor.fetchone()
+conn.commit()
+conn.close()
 
-    if existing:
-
-        print("⚠️ Duplicate Job Ignored")
-
-    else:
-
-        cursor.execute(
-            """
-            INSERT INTO jobs(title, link, created_at)
-            VALUES(?, ?, datetime('now'))
-            """,
-            (
-                job_title,
-                job_link
-            )
-        )
-
-        conn.commit()
-
-        print("✅ Job Saved")
-        print("💾 Saved To Database")
-        print("🔗 Link:", job_link)
-
-    conn.close()
-
-except Exception as e:
-    print("❌ DATABASE ERROR:")
-    print(e)
-
+# async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
